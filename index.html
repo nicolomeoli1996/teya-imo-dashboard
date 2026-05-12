@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IMO weekly dashboard — proposal</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: #F5F4F0;
+    color: #1A1A1A;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+  }
+  .page { max-width: 1240px; margin: 0 auto; padding: 32px 28px 48px; }
+
+  .topbar { display: flex; align-items: center; justify-content: space-between; padding-bottom: 16px; border-bottom: 1px solid rgba(0,0,0,0.08); margin-bottom: 24px; }
+  .topbar h1 { font-size: 22px; font-weight: 500; }
+  .topbar .meta { font-size: 12px; color: #6B6A65; margin-top: 4px; }
+  .pills { display: flex; gap: 8px; }
+  .pill { font-size: 11px; padding: 5px 10px; border: 1px solid rgba(0,0,0,0.12); border-radius: 8px; color: #5F5E5A; background: #fff; }
+
+  .section-label { font-size: 11px; font-weight: 500; color: #6B6A65; letter-spacing: 0.06em; text-transform: uppercase; margin: 0 0 10px; }
+
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 32px; }
+  .kpi { background: #fff; border-radius: 10px; padding: 16px 18px; border: 1px solid rgba(0,0,0,0.06); }
+  .kpi .label { font-size: 12px; color: #6B6A65; margin-bottom: 6px; }
+  .kpi .value { font-size: 28px; font-weight: 500; letter-spacing: -0.5px; }
+  .kpi .delta { font-size: 12px; margin-top: 4px; }
+
+  .pos { color: #3B6D11; }
+  .neg { color: #A32D2D; }
+  .warn { color: #854F0B; }
+  .neutral { color: #6B6A65; }
+
+  .card { background: #fff; border-radius: 12px; border: 1px solid rgba(0,0,0,0.06); padding: 18px 18px 16px; margin-bottom: 24px; }
+  .card .hint { font-size: 11px; color: #888780; margin-bottom: 12px; }
+
+  table.t { width: 100%; border-collapse: collapse; font-size: 12px; }
+  table.t thead th { font-weight: 400; color: #6B6A65; text-align: right; padding: 8px 6px; font-size: 11px; border-bottom: 1px solid rgba(0,0,0,0.08); }
+  table.t thead th:first-child { text-align: left; }
+  table.t thead th.left { text-align: left; }
+  table.t tbody td { padding: 10px 6px; text-align: right; border-bottom: 1px solid rgba(0,0,0,0.05); }
+  table.t tbody td:first-child { text-align: left; font-weight: 500; }
+  table.t tbody td.left { text-align: left; }
+  table.t .delta { font-size: 10px; margin-left: 4px; }
+  table.t .chev { font-size: 11px; color: #888780; margin-left: 4px; display: inline-block; transition: transform 0.15s; }
+
+  tr.country-row { cursor: pointer; user-select: none; }
+  tr.country-row:hover { background: #FBFAF6; }
+  tr.country-row.open { background: #F5F1E8; }
+  tr.country-row.open .chev { transform: rotate(180deg); color: #1A1A1A; }
+
+  .seg-bar { display: flex; height: 14px; border-radius: 3px; overflow: hidden; min-width: 110px; max-width: 130px; }
+  .seg-nano { background: #F0997B; }
+  .seg-micro { background: #FAC775; }
+  .seg-small { background: #97C459; }
+  .seg-medium { background: #5DCAA5; }
+  .seg-large { background: #85B7EB; }
+
+  .drill-row td { background: #FBFAF6 !important; padding: 0 !important; }
+  .drill-row.hidden { display: none; }
+  .drill { padding: 8px 18px 20px; }
+  .drill-title { font-size: 11px; font-weight: 500; color: #6B6A65; letter-spacing: 0.06em; text-transform: uppercase; margin: 12px 0 10px; }
+
+  .spark-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 14px; }
+  .spark { background: #fff; border-radius: 8px; padding: 12px 14px; border: 1px solid rgba(0,0,0,0.05); }
+  .spark .top { display: flex; justify-content: space-between; align-items: baseline; }
+  .spark .name { font-size: 11px; color: #6B6A65; }
+  .spark .wow { font-size: 10px; }
+  .spark .val { font-size: 20px; font-weight: 500; margin: 4px 0 6px; }
+  .spark svg { width: 100%; height: 50px; display: block; }
+  .spark .ends { display: flex; justify-content: space-between; font-size: 9px; color: #B4B2A9; margin-top: 4px; }
+
+  .drill-helper { background: #fff; border-radius: 8px; padding: 12px 14px; border: 1px dashed rgba(0,0,0,0.15); display: flex; flex-direction: column; justify-content: center; }
+  .drill-helper p { font-size: 11px; color: #6B6A65; line-height: 1.5; }
+  .drill-helper p strong { color: #1A1A1A; font-weight: 500; }
+
+  .segmix-card { background: #fff; border-radius: 8px; padding: 14px; border: 1px solid rgba(0,0,0,0.05); margin-bottom: 14px; }
+  .segmix-card .head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .segmix-card .head .lbl { font-size: 11px; color: #6B6A65; }
+  .segmix-card .head .sub { font-size: 10px; color: #B4B2A9; }
+  .segmix-area { width: 100%; height: 90px; display: block; border-radius: 4px; overflow: hidden; }
+  .segmix-axis { display: flex; justify-content: space-between; font-size: 9px; color: #B4B2A9; margin-top: 4px; }
+  .segmix-legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 12px; font-size: 11px; }
+  .legend-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+
+  table.channels { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; border: 1px solid rgba(0,0,0,0.05); font-size: 11px; }
+  table.channels thead th { font-weight: 400; color: #6B6A65; text-align: right; padding: 8px 10px; font-size: 10px; border-bottom: 1px solid rgba(0,0,0,0.05); }
+  table.channels thead th:first-child { text-align: left; }
+  table.channels thead th.left { text-align: left; }
+  table.channels tbody td { padding: 8px 10px; text-align: right; }
+  table.channels tbody td:first-child { text-align: left; font-weight: 500; color: #444441; }
+  table.channels tbody td.left { text-align: left; }
+  table.channels .delta { font-size: 9px; margin-left: 3px; }
+
+  tr.channel-row { cursor: pointer; user-select: none; }
+  tr.channel-row:hover { background: #FBFAF6; }
+  tr.channel-row.open { background: #F5F1E8; }
+  tr.channel-row.open .chev { transform: rotate(180deg); color: #1A1A1A; }
+  tr.segments-row td { background: #FBFAF6 !important; padding: 0 !important; }
+  tr.segments-row.hidden { display: none; }
+  .segments-inner { padding: 10px 14px 14px; }
+  .segments-inner .title { font-size: 10px; color: #6B6A65; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 8px; }
+  table.segments { width: 100%; border-collapse: collapse; font-size: 11px; background: #fff; border-radius: 6px; overflow: hidden; border: 1px solid rgba(0,0,0,0.05); }
+  table.segments thead th { font-weight: 400; color: #6B6A65; text-align: right; padding: 7px 10px; font-size: 10px; border-bottom: 1px solid rgba(0,0,0,0.05); }
+  table.segments thead th:first-child { text-align: left; }
+  table.segments tbody td { padding: 6px 10px; text-align: right; }
+  table.segments tbody td:first-child { text-align: left; font-weight: 500; }
+  table.segments tbody tr:nth-child(even) { background: #FBFAF6; }
+  .seg-dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+
+  table.repr { width: 100%; border-collapse: collapse; font-size: 11px; }
+  table.repr thead tr.group th { font-weight: 500; color: #6B6A65; text-align: center; padding: 8px 4px; font-size: 11px; border-bottom: 1px solid rgba(0,0,0,0.05); }
+  table.repr thead tr.cols th { font-weight: 400; color: #6B6A65; text-align: right; padding: 6px 6px; font-size: 10px; border-bottom: 1px solid rgba(0,0,0,0.08); }
+  table.repr thead tr.cols th:first-child { text-align: left; }
+  table.repr tbody td { padding: 9px 6px; text-align: right; border-bottom: 1px solid rgba(0,0,0,0.05); font-size: 11px; }
+  table.repr tbody td:first-child { text-align: left; font-weight: 500; }
+  table.repr .div-left { border-left: 1px solid rgba(0,0,0,0.08); padding-left: 12px; }
+  table.repr .empty { color: #B4B2A9; }
+  .footnote { font-size: 11px; color: #888780; margin-top: 12px; }
+
+  .interaction-hint { font-size: 11px; color: #888780; background: #FAF6E8; border: 1px solid rgba(132,99,33,0.15); border-radius: 6px; padding: 8px 12px; margin-bottom: 12px; }
+
+  .cohort-card { background: #fff; border-radius: 8px; padding: 14px; border: 1px solid rgba(0,0,0,0.05); margin-bottom: 14px; }
+  .cohort-card .head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
+  .cohort-card .lbl { font-size: 11px; color: #6B6A65; }
+  .cohort-tabs { display: flex; gap: 4px; }
+  .cohort-tabs button { font-size: 10px; padding: 4px 10px; border: 1px solid rgba(0,0,0,0.12); background: #fff; border-radius: 6px; cursor: pointer; color: #5F5E5A; font-family: inherit; }
+  .cohort-tabs button:hover { background: #F5F4F0; }
+  .cohort-tabs button.active { background: #1A1A1A; color: #fff; border-color: #1A1A1A; }
+  table.cohort-table { width: 100%; border-collapse: separate; border-spacing: 2px; font-size: 11px; }
+  table.cohort-table thead th { font-weight: 400; color: #6B6A65; padding: 4px 4px; font-size: 10px; text-align: center; }
+  table.cohort-table thead th:first-child { text-align: left; }
+  table.cohort-table tbody td { padding: 5px 4px; text-align: center; font-size: 11px; border-radius: 3px; min-width: 32px; }
+  table.cohort-table tbody td:first-child { text-align: left; font-weight: 500; padding-right: 8px; min-width: 56px; background: transparent !important; }
+  table.cohort-table tbody td.empty { color: #B4B2A9; background: transparent !important; }
+  table.cohort-table tbody td.peak { font-weight: 500; background: transparent !important; color: #1A1A1A; }
+  .cohort-table-wrap.hidden { display: none; }
+  .cohort-legend { display: flex; gap: 10px; font-size: 9px; color: #6B6A65; margin-top: 8px; flex-wrap: wrap; }
+  .cohort-legend span { display: inline-flex; align-items: center; gap: 4px; }
+  .cohort-legend .sw { width: 12px; height: 10px; border-radius: 2px; }
+
+  .m0-sub { font-size: 10px; color: #888780; margin-top: 3px; font-weight: 400; }
+  .m0-tag { font-size: 11px; font-weight: 400; color: #888780; margin-left: 6px; }
+  tr.segment-row { cursor: pointer; user-select: none; }
+  tr.segment-row:hover { background: #FBFAF6; }
+  tr.segment-row.open { background: #F5F1E8; }
+  tr.segment-row.open .chev { transform: rotate(180deg); color: #1A1A1A; }
+  tr.segment-drill-row td { background: #FBFAF6 !important; padding: 0 !important; }
+  tr.segment-drill-row.hidden { display: none; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="topbar">
+    <div>
+      <h1>IMO weekly dashboard</h1>
+      <div class="meta">Week of 11 May 2026 · pricing &amp; repricing</div>
+    </div>
+    <div class="pills">
+      <span class="pill">WoW</span>
+      <span class="pill">All countries</span>
+      <span class="pill">All channels</span>
+    </div>
+  </div>
+
+  <div class="section-label">1 · Executive snapshot</div>
+  <div class="kpis">
+    <div class="kpi"><div class="label">Expected ARPAC</div><div class="value">€42.10</div><div class="delta pos">▲ 3.4% WoW</div></div>
+    <div class="kpi"><div class="label">TPV adherence · M0</div><div class="value">18%</div><div class="delta warn">▼ 4% WoW · this week's cohort</div></div>
+    <div class="kpi"><div class="label">Repricing net impact (Apr)</div><div class="value">+€280k</div><div class="delta pos">CSF cohort · net positive</div></div>
+    <div class="kpi"><div class="label">Gross Adds · all countries</div><div class="value">1,118</div><div class="delta warn">▼ 18% WoW</div></div>
+  </div>
+
+  <div class="section-label">2 · Pricing — is the new curve improving unit economics</div>
+  <div class="card">
+    <div class="interaction-hint"><strong>Click</strong> any country row to open its 6-month evolution and channel breakdown. <strong>Click</strong> any channel inside the drill-down to see metrics per segment.</div>
+    <table class="t">
+      <thead>
+        <tr>
+          <th class="left">Country</th>
+          <th>Take rate (bps)</th>
+          <th>TPV adherence · M0</th>
+          <th>TPV / CID · M0</th>
+          <th>Payback (m)</th>
+          <th>Gross Adds</th>
+          <th class="left">Segment mix</th>
+        </tr>
+      </thead>
+      <tbody id="country-tbody"></tbody>
+    </table>
+  </div>
+
+  <div class="section-label">3 · Repricing — back-book health</div>
+  <div class="card">
+    <div class="hint">Wave funnel and signal-vs-noise per country · countries showing — are pre-wave</div>
+    <table class="repr">
+      <thead>
+        <tr class="group">
+          <th rowspan="2" style="text-align: left;">Country</th>
+          <th colspan="5">Wave funnel</th>
+          <th colspan="4" class="div-left">Signal vs noise</th>
+        </tr>
+        <tr class="cols">
+          <th>Sent</th><th>Delivered</th><th>Meetings</th><th>CR calls</th><th>Retained</th>
+          <th class="div-left">CR-call rate</th><th>Retention</th><th>TPV ▼&gt;50%</th><th>€ impact</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>UK</td><td>1,766</td><td>1,313</td><td>60</td><td>15</td><td>—</td><td class="div-left">1.1%</td><td>94%</td><td>7%</td><td>+€280k</td></tr>
+        <tr><td>Hungary</td><td class="empty">—</td><td class="empty">—</td><td class="empty">—</td><td class="empty">—</td><td class="empty">—</td><td class="div-left empty">—</td><td class="empty">—</td><td class="empty">—</td><td class="empty">—</td></tr>
+        <tr><td>Iceland</td><td class="empty">—</td><td class="empty">—</td><td class="empty">—</td><td class="empty">—</td><td class="empty">—</td><td class="div-left empty">—</td><td class="empty">—</td><td class="empty">—</td><td class="empty">—</td></tr>
+        <tr><td>CZ &amp; SK</td><td class="empty">—</td><td class="empty">—</td><td class="empty">—</td><td class="empty">—</td><td class="empty">—</td><td class="div-left empty">—</td><td class="empty">—</td><td class="empty">—</td><td class="empty">—</td></tr>
+        <tr><td>Croatia</td><td class="empty">—</td><td class="empty">—</td><td class="empty">—</td><td class="empty">—</td><td class="empty">—</td><td class="div-left empty">—</td><td class="empty">—</td><td class="empty">—</td><td class="empty">—</td></tr>
+        <tr><td>Portugal</td><td class="empty">—</td><td class="empty">—</td><td class="empty">—</td><td class="empty">—</td><td class="empty">—</td><td class="div-left empty">—</td><td class="empty">—</td><td class="empty">—</td><td class="empty">—</td></tr>
+        <tr><td>Italy</td><td class="empty">—</td><td class="empty">—</td><td class="empty">—</td><td class="empty">—</td><td class="empty">—</td><td class="div-left empty">—</td><td class="empty">—</td><td class="empty">—</td><td class="empty">—</td></tr>
+        <tr><td>Spain</td><td class="empty">—</td><td class="empty">—</td><td class="empty">—</td><td class="empty">—</td><td class="empty">—</td><td class="div-left empty">—</td><td class="empty">—</td><td class="empty">—</td><td class="empty">—</td></tr>
+      </tbody>
+    </table>
+    <div class="footnote">Guardrails · CR-call rate &gt;2% of cohort · TPV drop &gt;50% on more than 15% of cohort = pause wave</div>
+  </div>
+
+</div>
+
+<script>
+// ---------- DATA ----------
+
+const SPARKS = {
+  takeRateUp:    "0,38 8,37 16,38 24,35 32,34 40,32 48,33 56,30 64,28 72,29 80,26 88,25 96,23 104,24 112,21 120,19 128,20 136,17 144,16 152,15 160,13 168,14 176,11 184,10 192,9 200,8",
+  takeRateFlat:  "0,28 8,29 16,27 24,30 32,28 40,29 48,27 56,28 64,29 72,27 80,28 88,29 96,28 104,27 112,29 120,28 128,27 136,29 144,28 152,30 160,29 168,28 176,30 184,28 192,29 200,28",
+  takeRateDown:  "0,10 8,12 16,11 24,13 32,12 40,15 48,14 56,17 64,16 72,18 80,20 88,19 96,22 104,21 112,24 120,23 128,26 136,25 144,28 152,27 160,30 168,29 176,32 184,31 192,33 200,33",
+  adherenceUp:   "0,40 8,41 16,38 24,36 32,37 40,35 48,33 56,34 64,31 72,29 80,30 88,27 96,25 104,26 112,23 120,21 128,22 136,19 144,17 152,18 160,15 168,14 176,12 184,13 192,11 200,9",
+  tpvcidUp:      "0,32 8,33 16,30 24,31 32,28 40,29 48,26 56,27 64,24 72,25 80,22 88,23 96,20 104,21 112,18 120,19 128,16 136,17 144,14 152,15 160,12 168,13 176,10 184,11 192,9 200,8",
+  tpvcidDown:    "0,12 8,13 16,14 24,12 32,15 40,14 48,16 56,17 64,15 72,18 80,19 88,17 96,20 104,21 112,19 120,22 128,23 136,21 144,24 152,25 160,23 168,26 176,27 184,25 192,28 200,29",
+  paybackDown:   "0,5 8,7 16,9 24,8 32,11 40,13 48,12 56,15 64,16 72,17 80,19 88,18 96,21 104,22 112,20 120,23 128,24 136,22 144,25 152,24 160,26 168,27 176,28 184,30 192,29 200,30",
+  paybackUp:     "0,32 8,30 16,31 24,29 32,28 40,30 48,27 56,26 64,28 72,25 80,24 88,26 96,23 104,22 112,24 120,21 128,19 136,21 144,18 152,17 160,19 168,16 176,15 184,17 192,13 200,11",
+  onboardsDown:  "0,8 8,10 16,7 24,11 32,9 40,12 48,14 56,11 64,15 72,13 80,17 88,15 96,19 104,17 112,21 120,19 128,23 136,21 144,25 152,23 160,27 168,25 176,29 184,27 192,32 200,30",
+  onboardsUp:    "0,32 8,31 16,33 24,29 32,30 40,28 48,29 56,26 64,27 72,24 80,25 88,22 96,23 104,20 112,21 120,18 128,19 136,16 144,17 152,14 160,15 168,12 176,13 184,10 192,11 200,9"
+};
+
+function makeCohorts(peaks) {
+  const labels = ['Sep-25','Oct-25','Nov-25','Dec-25','Jan-26','Feb-26','Mar-26'];
+  const chOrder = ['all','field','inside','isc'];
+  const out = {};
+  for (const ch of chOrder) {
+    if (peaks[ch] == null) continue;
+    const peak = peaks[ch];
+    const m0Base = Math.round(peak * 0.42);
+    out[ch] = labels.map((label, ci) => {
+      const avail = 7 - ci;
+      const row = [label];
+      for (let m = 0; m < 7; m++) {
+        if (m >= avail) { row.push(null); continue; }
+        let v;
+        if (m === 0) v = m0Base;
+        else if (m === 1) v = m0Base + (peak - m0Base) * 0.55;
+        else if (m === 2) v = m0Base + (peak - m0Base) * 0.88;
+        else if (m === 3) v = peak;
+        else v = peak - (m - 3) * 2.2;
+        const seed = ((ci * 13 + chOrder.indexOf(ch) * 7 + m * 5) % 11) - 5;
+        v += seed * 0.7;
+        row.push(Math.max(8, Math.round(v)));
+      }
+      return row;
+    });
+  }
+  return out;
+}
+
+const COHORTS = {
+  uk: {
+    all: [['Sep-25',22,46,46,52,44,43,48],['Oct-25',22,36,44,34,35,39,null],['Nov-25',23,52,46,47,54,null,null],['Dec-25',26,36,38,43,null,null,null],['Jan-26',17,34,43,null,null,null,null],['Feb-26',14,36,null,null,null,null,null],['Mar-26',16,null,null,null,null,null,null]],
+    field: [['Sep-25',35,64,65,73,59,55,62],['Oct-25',24,48,64,41,46,52,null],['Nov-25',31,88,76,78,88,null,null],['Dec-25',36,51,59,81,null,null,null],['Jan-26',23,56,63,null,null,null,null],['Feb-26',22,60,null,null,null,null,null],['Mar-26',37,null,null,null,null,null,null]],
+    inside: [['Sep-25',31,56,56,57,52,50,56],['Oct-25',31,60,65,46,48,54,null],['Nov-25',39,77,57,60,73,null,null],['Dec-25',39,62,65,70,null,null,null],['Jan-26',21,50,58,null,null,null,null],['Feb-26',30,76,null,null,null,null,null],['Mar-26',28,null,null,null,null,null,null]],
+    isc: [['Sep-25',21,45,46,52,44,43,48],['Oct-25',21,31,38,30,30,33,null],['Nov-25',22,50,44,44,50,null,null],['Dec-25',26,35,36,41,null,null,null],['Jan-26',16,35,45,null,null,null,null],['Feb-26',17,40,null,null,null,null,null],['Mar-26',14,null,null,null,null,null,null]]
+  },
+  hungary: makeCohorts({all:50, field:68, inside:58, isc:44}),
+  iceland: makeCohorts({all:54, field:72, inside:62}),
+  czsk: makeCohorts({all:42, field:58, inside:48, isc:36}),
+  croatia: makeCohorts({all:56, field:74, inside:64, isc:48}),
+  portugal: makeCohorts({all:36, field:50, inside:42, isc:30}),
+  italy: makeCohorts({all:32, field:46, inside:38, isc:28}),
+  spain: makeCohorts({all:28, field:42, inside:34, isc:24})
+};
+
+const COUNTRIES = [
+  {
+    id:'uk', name:'UK',
+    row: { tr:'112 bps', trΔ:'▲ 1.9%', trC:'pos', adh:'47%', adhΔ:'▲ 3%', adhC:'pos', cid:'€18.2k', cidΔ:'▲ 4%', cidC:'pos', pb:'15.8 m', pbΔ:'▼ 2.5%', pbC:'pos', ob:'412', obΔ:'▼ 9%', obC:'warn', mix:[8,23,57,11,1] },
+    sparks: {
+      tr:{val:'112 bps', wow:'▲ 1.9% WoW', wowC:'pos', poly:SPARKS.takeRateUp, end1:'Nov 25 · 95 bps', end2:'peak 112 bps', stroke:'#3B6D11'},
+      adh:{val:'47%', wow:'▲ 3% WoW', wowC:'pos', poly:SPARKS.adherenceUp, end1:'Nov 25 · 22%', end2:'May 26 · 47%', stroke:'#3B6D11'},
+      cid:{val:'€18.2k', wow:'▲ 4% WoW', wowC:'pos', poly:SPARKS.tpvcidUp, end1:'Nov 25 · €13.1k', end2:'May 26 · €18.2k', stroke:'#3B6D11'},
+      pb:{val:'15.8 m', wow:'▼ 2.5% WoW', wowC:'pos', poly:SPARKS.paybackDown, end1:'Nov 25 · 23.1m', end2:'May 26 · 15.8m', stroke:'#3B6D11', hurdle:true},
+      ob:{val:'412', wow:'▼ 9% WoW', wowC:'warn', poly:SPARKS.onboardsDown, end1:'Nov 25 · 560', end2:'May 26 · 412', stroke:'#854F0B'}
+    },
+    segmixEvolution:{
+      nano:'Nano 8%', nanoΔ:'▼ 11% WoW · ▼ 47% 6mo', nanoC:'pos',
+      micro:'Micro 23%', microΔ:'→ 0% WoW · ▲ 5% 6mo', microC:'neutral',
+      small:'Small 57%', smallΔ:'▲ 4% WoW · ▲ 16% 6mo', smallC:'pos',
+      medium:'Medium 11%', mediumΔ:'▼ 8% WoW · ▼ 15% 6mo', mediumC:'warn',
+      large:'Large 1%', largeΔ:'→ 0%', largeC:'neutral'
+    },
+    channels: [
+      { id:'field', name:'Field', tr:'122 bps', trΔ:'▲ 2.5%', trC:'pos', adh:'62%', adhΔ:'▲ 5%', adhC:'pos', cid:'€32k', cidΔ:'▲ 6%', cidC:'pos', pb:'12.4 m', pbΔ:'▼ 3.1%', pbC:'pos', ob:'52', obΔ:'▲ 8%', obC:'pos', mix:[3,14,60,22,1],
+        segments:{ nano:['145 bps','28%','€1.9k','38.2 m'], micro:['132 bps','51%','€5.4k','22.1 m'], small:['118 bps','68%','€18.6k','14.0 m'], medium:['98 bps','79%','€68k','9.2 m'], large:['72 bps','88%','€420k','5.4 m'] }},
+      { id:'inside', name:'Inside', tr:'108 bps', trΔ:'▲ 1.4%', trC:'pos', adh:'56%', adhΔ:'▲ 4%', adhC:'pos', cid:'€21k', cidΔ:'→ 0%', cidC:'neutral', pb:'14.1 m', pbΔ:'▼ 2.1%', pbC:'pos', ob:'88', obΔ:'▼ 6%', obC:'warn', mix:[5,20,58,16,1],
+        segments:{ nano:['138 bps','35%','€2.1k','32.8 m'], micro:['122 bps','48%','€5.0k','24.5 m'], small:['104 bps','62%','€16.8k','15.2 m'], medium:['86 bps','75%','€61k','10.1 m'], large:['68 bps','85%','€380k','6.8 m'] }},
+      { id:'isc', name:'ISC', tr:'94 bps', trΔ:'→ 0%', trC:'neutral', adh:'38%', adhΔ:'▼ 4%', adhC:'neg', cid:'€14k', cidΔ:'▼ 5%', cidC:'warn', pb:'19.2 m', pbΔ:'▲ 2.7%', pbC:'neg', ob:'189', obΔ:'▼ 11%', obC:'warn', mix:[11,28,54,6,1],
+        segments:{ nano:['124 bps','22%','€1.6k','42.5 m'], micro:['108 bps','34%','€4.8k','29.8 m'], small:['92 bps','45%','€14.1k','18.4 m'], medium:['72 bps','58%','€52k','13.6 m'], large:['58 bps','71%','€312k','9.2 m'] }},
+      { id:'partner', name:'Partner', tr:'88 bps', trΔ:'→ 0%', trC:'neutral', adh:'42%', adhΔ:'→ 0%', adhC:'neutral', cid:'€11k', cidΔ:'▲ 3%', cidC:'pos', pb:'17.0 m', pbΔ:'→ 0%', pbC:'neutral', ob:'61', obΔ:'▼ 7%', obC:'warn', mix:[14,30,48,7,1],
+        segments:{ nano:['115 bps','30%','€1.5k','35.0 m'], micro:['98 bps','41%','€4.2k','26.2 m'], small:['84 bps','52%','€11.5k','17.8 m'], medium:['66 bps','64%','€45k','12.1 m'], large:['54 bps','76%','€280k','7.4 m'] }},
+      { id:'store', name:'Teya store', tr:'125 bps', trΔ:'▲ 3.2%', trC:'pos', adh:'68%', adhΔ:'▲ 6%', adhC:'pos', cid:'€9k', cidΔ:'▲ 5%', cidC:'pos', pb:'16.8 m', pbΔ:'▼ 1.8%', pbC:'pos', ob:'22', obΔ:'→ 0%', obC:'neutral', mix:[9,25,55,10,1],
+        segments:{ nano:['152 bps','58%','€2.4k','21.8 m'], micro:['134 bps','67%','€5.6k','17.4 m'], small:['118 bps','74%','€12.0k','14.2 m'], medium:['96 bps','81%','€48k','11.0 m'], large:['78 bps','89%','€295k','7.9 m'] }}
+    ]
+  },
+  {
+    id:'hungary', name:'Hungary',
+    row: { tr:'96 bps', trΔ:'→ 0%', trC:'neutral', adh:'52%', adhΔ:'▲ 1%', adhC:'pos', cid:'€6.4k', cidΔ:'▼ 6%', cidC:'neg', pb:'14.1 m', pbΔ:'▼ 1.4%', pbC:'pos', ob:'198', obΔ:'▲ 5%', obC:'pos', mix:[18,24,44,13,1] },
+    sparks: {
+      tr:{val:'96 bps', wow:'→ 0% WoW', wowC:'neutral', poly:SPARKS.takeRateFlat, end1:'Nov 25 · 92 bps', end2:'May 26 · 96 bps', stroke:'#5F5E5A'},
+      adh:{val:'52%', wow:'▲ 1% WoW', wowC:'pos', poly:SPARKS.adherenceUp, end1:'Nov 25 · 38%', end2:'May 26 · 52%', stroke:'#3B6D11'},
+      cid:{val:'€6.4k', wow:'▼ 6% WoW', wowC:'neg', poly:SPARKS.tpvcidDown, end1:'Nov 25 · €7.8k', end2:'May 26 · €6.4k', stroke:'#A32D2D'},
+      pb:{val:'14.1 m', wow:'▼ 1.4% WoW', wowC:'pos', poly:SPARKS.paybackDown, end1:'Nov 25 · 18.4m', end2:'May 26 · 14.1m', stroke:'#3B6D11', hurdle:true},
+      ob:{val:'198', wow:'▲ 5% WoW', wowC:'pos', poly:SPARKS.onboardsUp, end1:'Nov 25 · 152', end2:'May 26 · 198', stroke:'#3B6D11'}
+    },
+    segmixEvolution:{
+      nano:'Nano 18%', nanoΔ:'▼ 5% WoW · ▼ 22% 6mo', nanoC:'pos',
+      micro:'Micro 24%', microΔ:'▲ 4% WoW · → 0% 6mo', microC:'pos',
+      small:'Small 44%', smallΔ:'→ 0% WoW · ▲ 10% 6mo', smallC:'neutral',
+      medium:'Medium 13%', mediumΔ:'→ 0% WoW · ▲ 8% 6mo', mediumC:'neutral',
+      large:'Large 1%', largeΔ:'→ 0%', largeC:'neutral'
+    },
+    channels: [
+      { id:'field', name:'Field', tr:'108 bps', trΔ:'▲ 2.0%', trC:'pos', adh:'62%', adhΔ:'▲ 4%', adhC:'pos', cid:'€8.4k', cidΔ:'▲ 3%', cidC:'pos', pb:'11.2 m', pbΔ:'▼ 2.6%', pbC:'pos', ob:'48', obΔ:'▲ 9%', obC:'pos', mix:[8,21,52,18,1],
+        segments:{ nano:['128 bps','38%','€1.7k','29.4 m'], micro:['115 bps','55%','€4.8k','18.6 m'], small:['102 bps','71%','€14.2k','11.0 m'], medium:['84 bps','82%','€52k','7.8 m'], large:['68 bps','89%','€310k','4.6 m'] }},
+      { id:'inside', name:'Inside', tr:'94 bps', trΔ:'→ 0%', trC:'neutral', adh:'48%', adhΔ:'▼ 2%', adhC:'warn', cid:'€5.8k', cidΔ:'▼ 4%', cidC:'warn', pb:'17.2 m', pbΔ:'▲ 1.8%', pbC:'neg', ob:'62', obΔ:'▲ 7%', obC:'pos', mix:[14,28,48,9,1],
+        segments:{ nano:['118 bps','25%','€1.5k','38.2 m'], micro:['104 bps','42%','€4.3k','24.6 m'], small:['88 bps','55%','€13.4k','17.0 m'], medium:['72 bps','68%','€48k','12.4 m'], large:['58 bps','78%','€280k','8.4 m'] }},
+      { id:'isc', name:'ISC', tr:'85 bps', trΔ:'▼ 1.2%', trC:'warn', adh:'45%', adhΔ:'→ 0%', adhC:'neutral', cid:'€5.2k', cidΔ:'▼ 3%', cidC:'warn', pb:'16.4 m', pbΔ:'→ 0%', pbC:'neutral', ob:'72', obΔ:'▲ 6%', obC:'pos', mix:[22,30,40,7,1],
+        segments:{ nano:['112 bps','21%','€1.4k','41.0 m'], micro:['96 bps','36%','€4.0k','28.2 m'], small:['82 bps','48%','€12.6k','19.4 m'], medium:['66 bps','62%','€44k','14.0 m'], large:['52 bps','72%','€240k','9.8 m'] }},
+      { id:'partner', name:'Partner', tr:'82 bps', trΔ:'→ 0%', trC:'neutral', adh:'52%', adhΔ:'▲ 2%', adhC:'pos', cid:'€4.8k', cidΔ:'▼ 3%', cidC:'warn', pb:'18.6 m', pbΔ:'→ 0%', pbC:'neutral', ob:'16', obΔ:'→ 0%', obC:'neutral', mix:[32,28,32,7,1],
+        segments:{ nano:['106 bps','32%','€1.3k','36.4 m'], micro:['90 bps','46%','€3.8k','25.8 m'], small:['78 bps','58%','€11.8k','18.2 m'], medium:['62 bps','71%','€42k','13.6 m'], large:['50 bps','81%','€220k','9.0 m'] }}
+    ]
+  },
+  {
+    id:'iceland', name:'Iceland',
+    row: { tr:'88 bps', trΔ:'→ 0%', trC:'neutral', adh:'61%', adhΔ:'▲ 2%', adhC:'pos', cid:'€21.0k', cidΔ:'▲ 3%', cidC:'pos', pb:'17.5 m', pbΔ:'→ 0%', pbC:'neutral', ob:'52', obΔ:'▲ 4%', obC:'pos', mix:[6,20,54,18,2] },
+    sparks: {
+      tr:{val:'88 bps', wow:'→ 0% WoW', wowC:'neutral', poly:SPARKS.takeRateFlat, end1:'Nov 25 · 86 bps', end2:'May 26 · 88 bps', stroke:'#5F5E5A'},
+      adh:{val:'61%', wow:'▲ 2% WoW', wowC:'pos', poly:SPARKS.adherenceUp, end1:'Nov 25 · 48%', end2:'May 26 · 61%', stroke:'#3B6D11'},
+      cid:{val:'€21.0k', wow:'▲ 3% WoW', wowC:'pos', poly:SPARKS.tpvcidUp, end1:'Nov 25 · €17.4k', end2:'May 26 · €21.0k', stroke:'#3B6D11'},
+      pb:{val:'17.5 m', wow:'→ 0% WoW', wowC:'neutral', poly:SPARKS.paybackDown, end1:'Nov 25 · 20.2m', end2:'May 26 · 17.5m', stroke:'#5F5E5A', hurdle:true},
+      ob:{val:'52', wow:'▲ 4% WoW', wowC:'pos', poly:SPARKS.onboardsUp, end1:'Nov 25 · 41', end2:'May 26 · 52', stroke:'#3B6D11'}
+    },
+    segmixEvolution:{
+      nano:'Nano 6%', nanoΔ:'→ 0% WoW · ▼ 25% 6mo', nanoC:'pos',
+      micro:'Micro 20%', microΔ:'→ 0% WoW · → 0% 6mo', microC:'neutral',
+      small:'Small 54%', smallΔ:'▲ 2% WoW · ▲ 6% 6mo', smallC:'pos',
+      medium:'Medium 18%', mediumΔ:'→ 0% WoW · → 0% 6mo', mediumC:'neutral',
+      large:'Large 2%', largeΔ:'→ 0%', largeC:'neutral'
+    },
+    channels: [
+      { id:'field', name:'Field', tr:'92 bps', trΔ:'▲ 1.5%', trC:'pos', adh:'68%', adhΔ:'▲ 3%', adhC:'pos', cid:'€24.5k', cidΔ:'▲ 4%', cidC:'pos', pb:'14.8 m', pbΔ:'▼ 2.0%', pbC:'pos', ob:'31', obΔ:'▲ 7%', obC:'pos', mix:[3,15,55,25,2],
+        segments:{ nano:['120 bps','42%','€2.0k','26.4 m'], micro:['106 bps','58%','€5.6k','19.2 m'], small:['94 bps','72%','€17.2k','12.6 m'], medium:['78 bps','82%','€72k','8.4 m'], large:['64 bps','91%','€480k','5.2 m'] }},
+      { id:'inside', name:'Inside', tr:'84 bps', trΔ:'→ 0%', trC:'neutral', adh:'56%', adhΔ:'▲ 2%', adhC:'pos', cid:'€18.2k', cidΔ:'▲ 2%', cidC:'pos', pb:'19.6 m', pbΔ:'→ 0%', pbC:'neutral', ob:'21', obΔ:'→ 0%', obC:'neutral', mix:[8,24,52,14,2],
+        segments:{ nano:['108 bps','32%','€1.8k','32.0 m'], micro:['96 bps','48%','€5.0k','22.8 m'], small:['82 bps','60%','€15.4k','16.4 m'], medium:['68 bps','73%','€58k','11.6 m'], large:['56 bps','82%','€340k','7.8 m'] }}
+    ]
+  },
+  {
+    id:'czsk', name:'CZ & SK',
+    row: { tr:'82 bps', trΔ:'▲ 1.7%', trC:'pos', adh:'44%', adhΔ:'▲ 2%', adhC:'pos', cid:'€7.1k', cidΔ:'→ 0%', cidC:'neutral', pb:'22.8 m', pbΔ:'▼ 5.0%', pbC:'pos', ob:'88', obΔ:'▼ 4%', obC:'warn', mix:[14,23,46,16,1] },
+    sparks: {
+      tr:{val:'82 bps', wow:'▲ 1.7% WoW', wowC:'pos', poly:SPARKS.takeRateUp, end1:'Nov 25 · 71 bps', end2:'May 26 · 82 bps', stroke:'#3B6D11'},
+      adh:{val:'44%', wow:'▲ 2% WoW', wowC:'pos', poly:SPARKS.adherenceUp, end1:'Nov 25 · 30%', end2:'May 26 · 44%', stroke:'#3B6D11'},
+      cid:{val:'€7.1k', wow:'→ 0% WoW', wowC:'neutral', poly:SPARKS.takeRateFlat, end1:'Nov 25 · €6.8k', end2:'May 26 · €7.1k', stroke:'#5F5E5A'},
+      pb:{val:'22.8 m', wow:'▼ 5.0% WoW', wowC:'pos', poly:SPARKS.paybackDown, end1:'Nov 25 · 28.4m', end2:'May 26 · 22.8m', stroke:'#3B6D11', hurdle:true},
+      ob:{val:'88', wow:'▼ 4% WoW', wowC:'warn', poly:SPARKS.onboardsDown, end1:'Nov 25 · 102', end2:'May 26 · 88', stroke:'#854F0B'}
+    },
+    segmixEvolution:{
+      nano:'Nano 14%', nanoΔ:'▼ 7% WoW · ▼ 22% 6mo', nanoC:'pos',
+      micro:'Micro 23%', microΔ:'→ 0% WoW · ▲ 5% 6mo', microC:'neutral',
+      small:'Small 46%', smallΔ:'▲ 2% WoW · ▲ 7% 6mo', smallC:'pos',
+      medium:'Medium 16%', mediumΔ:'→ 0% WoW · → 0% 6mo', mediumC:'neutral',
+      large:'Large 1%', largeΔ:'→ 0%', largeC:'neutral'
+    },
+    channels: [
+      { id:'field', name:'Field', tr:'94 bps', trΔ:'▲ 2.2%', trC:'pos', adh:'54%', adhΔ:'▲ 3%', adhC:'pos', cid:'€9.6k', cidΔ:'▲ 5%', cidC:'pos', pb:'19.4 m', pbΔ:'▼ 4.0%', pbC:'pos', ob:'24', obΔ:'▲ 4%', obC:'pos', mix:[6,18,52,23,1],
+        segments:{ nano:['118 bps','30%','€1.6k','42.0 m'], micro:['104 bps','46%','€4.4k','29.4 m'], small:['92 bps','61%','€14.8k','19.2 m'], medium:['76 bps','74%','€56k','13.0 m'], large:['62 bps','84%','€330k','8.6 m'] }},
+      { id:'inside', name:'Inside', tr:'78 bps', trΔ:'▲ 1.3%', trC:'pos', adh:'40%', adhΔ:'→ 0%', adhC:'neutral', cid:'€6.4k', cidΔ:'→ 0%', cidC:'neutral', pb:'25.6 m', pbΔ:'▼ 3.4%', pbC:'pos', ob:'38', obΔ:'▼ 5%', obC:'warn', mix:[18,28,42,11,1],
+        segments:{ nano:['104 bps','22%','€1.4k','48.4 m'], micro:['92 bps','38%','€3.9k','32.8 m'], small:['80 bps','51%','€12.6k','22.4 m'], medium:['66 bps','64%','€46k','15.6 m'], large:['54 bps','74%','€260k','10.4 m'] }},
+      { id:'partner', name:'Partner', tr:'74 bps', trΔ:'→ 0%', trC:'neutral', adh:'42%', adhΔ:'▲ 2%', adhC:'pos', cid:'€5.8k', cidΔ:'→ 0%', cidC:'neutral', pb:'22.0 m', pbΔ:'→ 0%', pbC:'neutral', ob:'26', obΔ:'→ 0%', obC:'neutral', mix:[20,26,42,11,1],
+        segments:{ nano:['98 bps','28%','€1.4k','40.2 m'], micro:['86 bps','42%','€3.8k','28.0 m'], small:['72 bps','54%','€11.4k','19.8 m'], medium:['58 bps','66%','€42k','14.2 m'], large:['48 bps','76%','€220k','9.6 m'] }}
+    ]
+  },
+  {
+    id:'croatia', name:'Croatia',
+    row: { tr:'94 bps', trΔ:'▲ 0.9%', trC:'pos', adh:'56%', adhΔ:'▲ 2%', adhC:'pos', cid:'€5.8k', cidΔ:'▲ 8%', cidC:'pos', pb:'12.9 m', pbΔ:'▼ 2.3%', pbC:'pos', ob:'141', obΔ:'▲ 12%', obC:'pos', mix:[12,22,52,13,1] },
+    sparks: {
+      tr:{val:'94 bps', wow:'▲ 0.9% WoW', wowC:'pos', poly:SPARKS.takeRateUp, end1:'Nov 25 · 86 bps', end2:'May 26 · 94 bps', stroke:'#3B6D11'},
+      adh:{val:'56%', wow:'▲ 2% WoW', wowC:'pos', poly:SPARKS.adherenceUp, end1:'Nov 25 · 42%', end2:'May 26 · 56%', stroke:'#3B6D11'},
+      cid:{val:'€5.8k', wow:'▲ 8% WoW', wowC:'pos', poly:SPARKS.tpvcidUp, end1:'Nov 25 · €4.4k', end2:'May 26 · €5.8k', stroke:'#3B6D11'},
+      pb:{val:'12.9 m', wow:'▼ 2.3% WoW', wowC:'pos', poly:SPARKS.paybackDown, end1:'Nov 25 · 16.8m', end2:'May 26 · 12.9m', stroke:'#3B6D11', hurdle:true},
+      ob:{val:'141', wow:'▲ 12% WoW', wowC:'pos', poly:SPARKS.onboardsUp, end1:'Nov 25 · 94', end2:'May 26 · 141', stroke:'#3B6D11'}
+    },
+    segmixEvolution:{
+      nano:'Nano 12%', nanoΔ:'▼ 8% WoW · ▼ 25% 6mo', nanoC:'pos',
+      micro:'Micro 22%', microΔ:'→ 0% WoW · → 0% 6mo', microC:'neutral',
+      small:'Small 52%', smallΔ:'▲ 4% WoW · ▲ 11% 6mo', smallC:'pos',
+      medium:'Medium 13%', mediumΔ:'→ 0% WoW · ▼ 7% 6mo', mediumC:'neutral',
+      large:'Large 1%', largeΔ:'→ 0%', largeC:'neutral'
+    },
+    channels: [
+      { id:'field', name:'Field', tr:'108 bps', trΔ:'▲ 1.9%', trC:'pos', adh:'64%', adhΔ:'▲ 4%', adhC:'pos', cid:'€7.8k', cidΔ:'▲ 10%', cidC:'pos', pb:'10.8 m', pbΔ:'▼ 3.6%', pbC:'pos', ob:'42', obΔ:'▲ 14%', obC:'pos', mix:[6,18,54,21,1],
+        segments:{ nano:['132 bps','38%','€1.7k','25.0 m'], micro:['118 bps','54%','€4.6k','17.2 m'], small:['104 bps','69%','€13.8k','10.6 m'], medium:['86 bps','80%','€51k','7.2 m'], large:['72 bps','88%','€310k','4.4 m'] }},
+      { id:'inside', name:'Inside', tr:'92 bps', trΔ:'▲ 1.1%', trC:'pos', adh:'52%', adhΔ:'▲ 2%', adhC:'pos', cid:'€5.2k', cidΔ:'▲ 7%', cidC:'pos', pb:'14.2 m', pbΔ:'▼ 2.1%', pbC:'pos', ob:'62', obΔ:'▲ 11%', obC:'pos', mix:[14,26,48,11,1],
+        segments:{ nano:['114 bps','32%','€1.4k','30.8 m'], micro:['100 bps','46%','€4.0k','22.0 m'], small:['86 bps','58%','€12.4k','15.2 m'], medium:['72 bps','71%','€44k','10.4 m'], large:['58 bps','82%','€260k','6.8 m'] }},
+      { id:'isc', name:'ISC', tr:'82 bps', trΔ:'→ 0%', trC:'neutral', adh:'48%', adhΔ:'▲ 2%', adhC:'pos', cid:'€4.6k', cidΔ:'→ 0%', cidC:'neutral', pb:'16.0 m', pbΔ:'→ 0%', pbC:'neutral', ob:'37', obΔ:'▲ 10%', obC:'pos', mix:[18,28,46,7,1],
+        segments:{ nano:['104 bps','28%','€1.3k','36.0 m'], micro:['90 bps','42%','€3.6k','25.4 m'], small:['78 bps','54%','€11.6k','17.8 m'], medium:['64 bps','68%','€41k','12.6 m'], large:['52 bps','78%','€230k','8.2 m'] }}
+    ]
+  },
+  {
+    id:'portugal', name:'Portugal',
+    row: { tr:'73 bps', trΔ:'▼ 0.7%', trC:'neg', adh:'41%', adhΔ:'▼ 1%', adhC:'warn', cid:'€4.9k', cidΔ:'▼ 5%', cidC:'neg', pb:'23.5 m', pbΔ:'▲ 1.7%', pbC:'warn', ob:'79', obΔ:'▼ 11%', obC:'neg', mix:[22,26,38,13,1] },
+    sparks: {
+      tr:{val:'73 bps', wow:'▼ 0.7% WoW', wowC:'neg', poly:SPARKS.takeRateDown, end1:'Nov 25 · 81 bps', end2:'May 26 · 73 bps', stroke:'#A32D2D'},
+      adh:{val:'41%', wow:'▼ 1% WoW', wowC:'warn', poly:SPARKS.takeRateFlat, end1:'Nov 25 · 39%', end2:'May 26 · 41%', stroke:'#5F5E5A'},
+      cid:{val:'€4.9k', wow:'▼ 5% WoW', wowC:'neg', poly:SPARKS.tpvcidDown, end1:'Nov 25 · €5.6k', end2:'May 26 · €4.9k', stroke:'#A32D2D'},
+      pb:{val:'23.5 m', wow:'▲ 1.7% WoW', wowC:'warn', poly:SPARKS.paybackUp, end1:'Nov 25 · 19.8m', end2:'May 26 · 23.5m', stroke:'#854F0B', hurdle:true},
+      ob:{val:'79', wow:'▼ 11% WoW', wowC:'neg', poly:SPARKS.onboardsDown, end1:'Nov 25 · 104', end2:'May 26 · 79', stroke:'#A32D2D'}
+    },
+    segmixEvolution:{
+      nano:'Nano 22%', nanoΔ:'→ 0% WoW · ▼ 8% 6mo', nanoC:'neutral',
+      micro:'Micro 26%', microΔ:'→ 0% WoW · ▲ 4% 6mo', microC:'neutral',
+      small:'Small 38%', smallΔ:'→ 0% WoW · ▲ 3% 6mo', smallC:'neutral',
+      medium:'Medium 13%', mediumΔ:'→ 0% WoW · → 0% 6mo', mediumC:'neutral',
+      large:'Large 1%', largeΔ:'→ 0%', largeC:'neutral'
+    },
+    channels: [
+      { id:'field', name:'Field', tr:'82 bps', trΔ:'▼ 1.2%', trC:'neg', adh:'48%', adhΔ:'→ 0%', adhC:'neutral', cid:'€6.4k', cidΔ:'▼ 4%', cidC:'warn', pb:'19.2 m', pbΔ:'▲ 2.1%', pbC:'neg', ob:'22', obΔ:'▼ 8%', obC:'warn', mix:[14,22,48,15,1],
+        segments:{ nano:['108 bps','30%','€1.5k','38.0 m'], micro:['94 bps','44%','€3.8k','26.4 m'], small:['82 bps','56%','€12.2k','18.4 m'], medium:['68 bps','68%','€42k','12.8 m'], large:['54 bps','78%','€240k','8.6 m'] }},
+      { id:'inside', name:'Inside', tr:'70 bps', trΔ:'▼ 1.4%', trC:'neg', adh:'38%', adhΔ:'▼ 2%', adhC:'warn', cid:'€4.6k', cidΔ:'▼ 6%', cidC:'neg', pb:'26.8 m', pbΔ:'▲ 1.5%', pbC:'neg', ob:'34', obΔ:'▼ 12%', obC:'neg', mix:[24,28,38,9,1],
+        segments:{ nano:['94 bps','20%','€1.2k','46.0 m'], micro:['82 bps','32%','€3.4k','32.4 m'], small:['70 bps','46%','€11.0k','22.6 m'], medium:['58 bps','58%','€38k','16.0 m'], large:['46 bps','68%','€200k','10.8 m'] }},
+      { id:'partner', name:'Partner', tr:'68 bps', trΔ:'▼ 0.9%', trC:'neg', adh:'42%', adhΔ:'→ 0%', adhC:'neutral', cid:'€4.2k', cidΔ:'▼ 4%', cidC:'warn', pb:'24.0 m', pbΔ:'▲ 1.3%', pbC:'neg', ob:'23', obΔ:'→ 0%', obC:'neutral', mix:[30,30,32,7,1],
+        segments:{ nano:['90 bps','26%','€1.2k','40.0 m'], micro:['78 bps','38%','€3.2k','28.6 m'], small:['66 bps','50%','€10.2k','20.0 m'], medium:['54 bps','62%','€36k','13.8 m'], large:['44 bps','72%','€190k','9.2 m'] }}
+    ]
+  },
+  {
+    id:'italy', name:'Italy',
+    row: { tr:'68 bps', trΔ:'▲ 1.5%', trC:'pos', adh:'38%', adhΔ:'▲ 2%', adhC:'pos', cid:'€4.1k', cidΔ:'▲ 6%', cidC:'pos', pb:'29.6 m', pbΔ:'▼ 0.7%', pbC:'warn', ob:'62', obΔ:'▲ 18%', obC:'pos', mix:[18,28,39,14,1] },
+    sparks: {
+      tr:{val:'68 bps', wow:'▲ 1.5% WoW', wowC:'pos', poly:SPARKS.takeRateUp, end1:'Nov 25 · 58 bps', end2:'May 26 · 68 bps', stroke:'#3B6D11'},
+      adh:{val:'38%', wow:'▲ 2% WoW', wowC:'pos', poly:SPARKS.adherenceUp, end1:'Nov 25 · 26%', end2:'May 26 · 38%', stroke:'#3B6D11'},
+      cid:{val:'€4.1k', wow:'▲ 6% WoW', wowC:'pos', poly:SPARKS.tpvcidUp, end1:'Nov 25 · €3.2k', end2:'May 26 · €4.1k', stroke:'#3B6D11'},
+      pb:{val:'29.6 m', wow:'▼ 0.7% WoW', wowC:'warn', poly:SPARKS.paybackUp, end1:'Nov 25 · 33.2m', end2:'May 26 · 29.6m', stroke:'#854F0B', hurdle:true},
+      ob:{val:'62', wow:'▲ 18% WoW', wowC:'pos', poly:SPARKS.onboardsUp, end1:'Nov 25 · 32', end2:'May 26 · 62', stroke:'#3B6D11'}
+    },
+    segmixEvolution:{
+      nano:'Nano 18%', nanoΔ:'▼ 5% WoW · ▼ 14% 6mo', nanoC:'pos',
+      micro:'Micro 28%', microΔ:'→ 0% WoW · ▲ 8% 6mo', microC:'neutral',
+      small:'Small 39%', smallΔ:'▲ 5% WoW · ▲ 11% 6mo', smallC:'pos',
+      medium:'Medium 14%', mediumΔ:'→ 0% WoW · ▲ 8% 6mo', mediumC:'neutral',
+      large:'Large 1%', largeΔ:'→ 0%', largeC:'neutral'
+    },
+    channels: [
+      { id:'field', name:'Field', tr:'76 bps', trΔ:'▲ 2.0%', trC:'pos', adh:'45%', adhΔ:'▲ 3%', adhC:'pos', cid:'€5.2k', cidΔ:'▲ 8%', cidC:'pos', pb:'25.4 m', pbΔ:'▼ 1.2%', pbC:'pos', ob:'18', obΔ:'▲ 22%', obC:'pos', mix:[10,22,48,19,1],
+        segments:{ nano:['98 bps','26%','€1.4k','42.0 m'], micro:['86 bps','42%','€3.5k','30.4 m'], small:['74 bps','55%','€11.6k','21.2 m'], medium:['60 bps','68%','€40k','14.8 m'], large:['48 bps','78%','€220k','10.0 m'] }},
+      { id:'inside', name:'Inside', tr:'62 bps', trΔ:'▲ 1.6%', trC:'pos', adh:'34%', adhΔ:'▲ 2%', adhC:'pos', cid:'€3.6k', cidΔ:'▲ 5%', cidC:'pos', pb:'34.8 m', pbΔ:'▼ 0.9%', pbC:'pos', ob:'28', obΔ:'▲ 16%', obC:'pos', mix:[22,30,36,11,1],
+        segments:{ nano:['88 bps','18%','€1.1k','52.0 m'], micro:['76 bps','30%','€3.0k','38.4 m'], small:['64 bps','42%','€9.8k','26.8 m'], medium:['52 bps','56%','€34k','19.2 m'], large:['42 bps','68%','€180k','12.6 m'] }},
+      { id:'partner', name:'Partner', tr:'58 bps', trΔ:'→ 0%', trC:'neutral', adh:'36%', adhΔ:'→ 0%', adhC:'neutral', cid:'€3.4k', cidΔ:'→ 0%', cidC:'neutral', pb:'32.0 m', pbΔ:'→ 0%', pbC:'neutral', ob:'16', obΔ:'▲ 14%', obC:'pos', mix:[26,30,34,9,1],
+        segments:{ nano:['82 bps','24%','€1.1k','46.0 m'], micro:['70 bps','34%','€2.8k','34.2 m'], small:['60 bps','48%','€9.2k','24.4 m'], medium:['48 bps','60%','€32k','17.2 m'], large:['38 bps','72%','€170k','11.4 m'] }}
+    ]
+  },
+  {
+    id:'spain', name:'Spain',
+    row: { tr:'61 bps', trΔ:'▼ 1.3%', trC:'neg', adh:'35%', adhΔ:'▼ 1%', adhC:'warn', cid:'€3.6k', cidΔ:'→ 0%', cidC:'neutral', pb:'37.1 m', pbΔ:'▼ 0.8%', pbC:'warn', ob:'38', obΔ:'▼ 14%', obC:'neg', mix:[24,30,34,11,1] },
+    sparks: {
+      tr:{val:'61 bps', wow:'▼ 1.3% WoW', wowC:'neg', poly:SPARKS.takeRateDown, end1:'Nov 25 · 68 bps', end2:'May 26 · 61 bps', stroke:'#A32D2D'},
+      adh:{val:'35%', wow:'▼ 1% WoW', wowC:'warn', poly:SPARKS.takeRateFlat, end1:'Nov 25 · 32%', end2:'May 26 · 35%', stroke:'#5F5E5A'},
+      cid:{val:'€3.6k', wow:'→ 0% WoW', wowC:'neutral', poly:SPARKS.takeRateFlat, end1:'Nov 25 · €3.4k', end2:'May 26 · €3.6k', stroke:'#5F5E5A'},
+      pb:{val:'37.1 m', wow:'▼ 0.8% WoW', wowC:'warn', poly:SPARKS.paybackUp, end1:'Nov 25 · 41.2m', end2:'May 26 · 37.1m', stroke:'#854F0B', hurdle:true},
+      ob:{val:'38', wow:'▼ 14% WoW', wowC:'neg', poly:SPARKS.onboardsDown, end1:'Nov 25 · 56', end2:'May 26 · 38', stroke:'#A32D2D'}
+    },
+    segmixEvolution:{
+      nano:'Nano 24%', nanoΔ:'→ 0% WoW · ▼ 4% 6mo', nanoC:'neutral',
+      micro:'Micro 30%', microΔ:'→ 0% WoW · ▲ 3% 6mo', microC:'neutral',
+      small:'Small 34%', smallΔ:'→ 0% WoW · → 0% 6mo', smallC:'neutral',
+      medium:'Medium 11%', mediumΔ:'→ 0% WoW · → 0% 6mo', mediumC:'neutral',
+      large:'Large 1%', largeΔ:'→ 0%', largeC:'neutral'
+    },
+    channels: [
+      { id:'field', name:'Field', tr:'68 bps', trΔ:'▼ 1.4%', trC:'neg', adh:'42%', adhΔ:'→ 0%', adhC:'neutral', cid:'€4.6k', cidΔ:'→ 0%', cidC:'neutral', pb:'32.4 m', pbΔ:'→ 0%', pbC:'neutral', ob:'12', obΔ:'▼ 14%', obC:'warn', mix:[16,24,44,15,1],
+        segments:{ nano:['88 bps','24%','€1.3k','48.0 m'], micro:['76 bps','38%','€3.2k','34.0 m'], small:['66 bps','51%','€10.6k','23.8 m'], medium:['54 bps','62%','€36k','16.8 m'], large:['44 bps','72%','€200k','11.4 m'] }},
+      { id:'inside', name:'Inside', tr:'56 bps', trΔ:'▼ 1.8%', trC:'neg', adh:'32%', adhΔ:'▼ 3%', adhC:'warn', cid:'€3.2k', cidΔ:'→ 0%', cidC:'neutral', pb:'42.0 m', pbΔ:'▲ 1.5%', pbC:'neg', ob:'18', obΔ:'▼ 14%', obC:'neg', mix:[28,32,32,7,1],
+        segments:{ nano:['78 bps','16%','€1.0k','58.0 m'], micro:['68 bps','28%','€2.7k','42.0 m'], small:['58 bps','40%','€8.8k','30.0 m'], medium:['48 bps','52%','€30k','21.6 m'], large:['38 bps','64%','€160k','14.4 m'] }},
+      { id:'partner', name:'Partner', tr:'52 bps', trΔ:'▼ 1.9%', trC:'neg', adh:'30%', adhΔ:'→ 0%', adhC:'neutral', cid:'€2.8k', cidΔ:'→ 0%', cidC:'neutral', pb:'38.0 m', pbΔ:'→ 0%', pbC:'neutral', ob:'8', obΔ:'→ 0%', obC:'neutral', mix:[34,32,28,5,1],
+        segments:{ nano:['74 bps','22%','€1.0k','52.0 m'], micro:['64 bps','32%','€2.6k','38.6 m'], small:['54 bps','44%','€8.4k','27.4 m'], medium:['44 bps','56%','€28k','19.8 m'], large:['34 bps','66%','€150k','13.0 m'] }}
+    ]
+  }
+];
+
+// ---------- RENDER ----------
+
+function segBar(mix){
+  const [n,mi,s,m,l] = mix;
+  return `<div class="seg-bar">
+    <div class="seg-nano" style="width:${n}%;"></div>
+    <div class="seg-micro" style="width:${mi}%;"></div>
+    <div class="seg-small" style="width:${s}%;"></div>
+    <div class="seg-medium" style="width:${m}%;"></div>
+    <div class="seg-large" style="width:${l}%;"></div>
+  </div>`;
+}
+
+function shiftPoly(poly, dy) {
+  return poly.split(' ').map(pt => {
+    const [x, y] = pt.split(',');
+    return x + ',' + Math.min(48, parseFloat(y) + dy).toFixed(0);
+  }).join(' ');
+}
+
+function sparkCard(name, s){
+  const hurdle = s.hurdle ? `<line x1="0" y1="20" x2="200" y2="20" stroke="rgba(0,0,0,0.18)" stroke-dasharray="3,3"/><text x="2" y="17" font-size="7" fill="rgba(0,0,0,0.45)">17m hurdle</text>` : '';
+  const lastPt = s.poly.split(' ').pop().split(',');
+  const m0Line = s.m0Poly ? `<polyline points="${s.m0Poly}" fill="none" stroke="${s.stroke}" stroke-width="1.2" stroke-dasharray="2,2" opacity="0.55"/>` : '';
+  const m0LastPt = s.m0Poly ? s.m0Poly.split(' ').pop().split(',') : null;
+  const m0Circle = m0LastPt ? `<circle cx="${m0LastPt[0]}" cy="${m0LastPt[1]}" r="2" fill="${s.stroke}" opacity="0.55"/>` : '';
+  const m0Tag = s.m0Val ? `<span class="m0-tag">M0 · ${s.m0Val}</span>` : '';
+  return `<div class="spark">
+    <div class="top"><span class="name">${name}</span><span class="wow ${s.wowC}">${s.wow}</span></div>
+    <div class="val">${s.val}${m0Tag}</div>
+    <svg viewBox="0 0 200 50" preserveAspectRatio="none">
+      <line x1="0" y1="42" x2="200" y2="42" stroke="rgba(0,0,0,0.08)" stroke-dasharray="2,2"/>
+      ${hurdle}
+      <polyline points="${s.poly}" fill="none" stroke="${s.stroke}" stroke-width="1.5"/>
+      ${m0Line}
+      <circle cx="${lastPt[0]}" cy="${lastPt[1]}" r="2.5" fill="${s.stroke}"/>
+      ${m0Circle}
+    </svg>
+    <div class="ends"><span>${s.end1}</span><span>${s.end2}</span></div>
+  </div>`;
+}
+
+function segmixCard(c){
+  const e = c.segmixEvolution;
+  const [nano, micro, small, medium] = c.row.mix;
+  // Approximate 6-month-ago values (illustrative — pre-nano-change, pre-new-curve)
+  const nanoStart = Math.min(38, nano + 7);
+  const microStart = Math.max(8, micro - 1);
+  const smallStart = Math.max(20, small - 8);
+  const mediumStart = medium + 1;
+  // 26 weekly waypoints with deterministic noise + sinusoidal variation
+  const N = 26;
+  const seedBase = c.id.length * 17 + c.name.charCodeAt(0);
+  function tracePath(startY, endY, bandSeed) {
+    const pts = [];
+    for (let i = 0; i <= N; i++) {
+      const t = i / N;
+      const base = startY + (endY - startY) * t;
+      const wave = Math.sin(i * 0.55 + bandSeed * 0.31) * 1.6;
+      const noise = ((bandSeed * 13 + i * 7) % 11 - 5) * 0.4;
+      const y = Math.max(0.5, Math.min(99.5, base + wave + noise));
+      pts.push((i * 600 / N).toFixed(1) + ',' + y.toFixed(1));
+    }
+    return pts;
+  }
+  const p1 = tracePath(nanoStart, nano, seedBase + 1);
+  const p2 = tracePath(nanoStart + microStart, nano + micro, seedBase + 2);
+  const p3 = tracePath(nanoStart + microStart + smallStart, nano + micro + small, seedBase + 3);
+  const p4 = tracePath(nanoStart + microStart + smallStart + mediumStart, nano + micro + small + medium, seedBase + 4);
+  const rev = (a) => a.slice().reverse();
+  const polyNano   = ['0,0', '600,0', ...rev(p1)].join(' ');
+  const polyMicro  = [...p1, ...rev(p2)].join(' ');
+  const polySmall  = [...p2, ...rev(p3)].join(' ');
+  const polyMedium = [...p3, ...rev(p4)].join(' ');
+  const polyLarge  = [...p4, '600,100', '0,100'].join(' ');
+  return `<div class="segmix-card">
+    <div class="head">
+      <span class="lbl">Segment mix · ${c.name} · 6-month weekly evolution</span>
+      <span class="sub">stacked share of weekly gross adds</span>
+    </div>
+    <svg class="segmix-area" viewBox="0 0 600 100" preserveAspectRatio="none">
+      <polygon points="${polyNano}" fill="#F0997B"/>
+      <polygon points="${polyMicro}" fill="#FAC775"/>
+      <polygon points="${polySmall}" fill="#97C459"/>
+      <polygon points="${polyMedium}" fill="#5DCAA5"/>
+      <polygon points="${polyLarge}" fill="#85B7EB"/>
+      <line x1="280" y1="0" x2="280" y2="100" stroke="rgba(0,0,0,0.35)" stroke-dasharray="3,3" stroke-width="0.6"/>
+      <line x1="540" y1="0" x2="540" y2="100" stroke="rgba(0,0,0,0.35)" stroke-dasharray="3,3" stroke-width="0.6"/>
+    </svg>
+    <div class="segmix-axis">
+      <span>Nov 25</span>
+      <span>3 Mar · nano change</span>
+      <span>22 Apr · new curve live</span>
+      <span>May 26</span>
+    </div>
+    <div class="segmix-legend">
+      <span><span class="legend-swatch seg-nano"></span>${e.nano} <span class="${e.nanoC}">${e.nanoΔ}</span></span>
+      <span><span class="legend-swatch seg-micro"></span>${e.micro} <span class="${e.microC}">${e.microΔ}</span></span>
+      <span><span class="legend-swatch seg-small"></span>${e.small} <span class="${e.smallC}">${e.smallΔ}</span></span>
+      <span><span class="legend-swatch seg-medium"></span>${e.medium} <span class="${e.mediumC}">${e.mediumΔ}</span></span>
+      <span><span class="legend-swatch seg-large"></span>${e.large} <span class="${e.largeC}">${e.largeΔ}</span></span>
+    </div>
+  </div>`;
+}
+
+function pickPoly(metric, c) {
+  const m = {
+    tr: c === 'pos' ? SPARKS.takeRateUp : c === 'neutral' ? SPARKS.takeRateFlat : SPARKS.takeRateDown,
+    adh: c === 'pos' ? SPARKS.adherenceUp : SPARKS.takeRateFlat,
+    cid: c === 'pos' ? SPARKS.tpvcidUp : c === 'neutral' ? SPARKS.takeRateFlat : SPARKS.tpvcidDown,
+    pb: c === 'pos' ? SPARKS.paybackDown : c === 'neutral' ? SPARKS.takeRateFlat : SPARKS.paybackUp,
+    ob: c === 'pos' ? SPARKS.onboardsUp : c === 'neutral' ? SPARKS.takeRateFlat : SPARKS.onboardsDown,
+    nr: c === 'pos' ? SPARKS.tpvcidUp : c === 'neutral' ? SPARKS.takeRateFlat : SPARKS.tpvcidDown
+  };
+  return m[metric];
+}
+function pickStroke(c) {
+  return c === 'pos' ? '#3B6D11' : c === 'neg' ? '#A32D2D' : c === 'warn' ? '#854F0B' : '#5F5E5A';
+}
+function rowToSparks(row) {
+  const mk = (val, wow, wowC, metric, extra) => Object.assign({
+    val, wow: wow + ' WoW', wowC, poly: pickPoly(metric, wowC), stroke: pickStroke(wowC),
+    end1: 'Nov 25', end2: 'May 26 · ' + val
+  }, extra || {});
+  const sparks = {
+    tr: mk(row.tr, row.trΔ, row.trC, 'tr'),
+    adh: mk(row.adh, row.adhΔ, row.adhC, 'adh'),
+    cid: mk(row.cid, row.cidΔ, row.cidC, 'cid'),
+    pb: mk(row.pb, row.pbΔ, row.pbC, 'pb', {hurdle: true}),
+    ob: mk(row.ob, row.obΔ, row.obC, 'ob'),
+    nr: mk(row.nr || '—', row.nrΔ || '→ 0%', row.nrC || 'neutral', 'nr')
+  };
+  if (row.adhM0) {
+    sparks.adh.m0Poly = shiftPoly(sparks.adh.poly, 18);
+    sparks.adh.m0Val = row.adhM0;
+  }
+  if (row.cidM0) {
+    sparks.cid.m0Poly = shiftPoly(sparks.cid.poly, 14);
+    sparks.cid.m0Val = row.cidM0;
+  }
+  return sparks;
+}
+function sparkGrid6(sparks) {
+  return `<div class="spark-grid">
+    ${sparkCard('Take rate (bps)', sparks.tr)}
+    ${sparkCard('TPV adherence · M0', sparks.adh)}
+    ${sparkCard('TPV / CID · M0', sparks.cid)}
+    ${sparkCard('Payback (months)', sparks.pb)}
+    ${sparkCard('Gross Adds', sparks.ob)}
+    ${sparkCard('Net revenue', sparks.nr)}
+  </div>`;
+}
+function segName(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+function makeBySegment(country) {
+  const segs = ['nano','micro','small','medium','large'];
+  const result = {};
+  segs.forEach((seg, i) => {
+    const trArr = [], adhArr = [], cidArr = [], pbArr = [];
+    country.channels.forEach(ch => {
+      if (ch.segments && ch.segments[seg]) {
+        const [tr, adh, cid, pb] = ch.segments[seg];
+        trArr.push(parseFloat(tr));
+        adhArr.push(parseFloat(adh));
+        cidArr.push(parseFloat(cid.replace(/[€k]/g, '')));
+        pbArr.push(parseFloat(pb));
+      }
+    });
+    if (trArr.length === 0) return;
+    const avg = a => a.reduce((x,y) => x+y, 0) / a.length;
+    const trAvg = Math.round(avg(trArr));
+    const adhAvg = Math.round(avg(adhArr));
+    const cidAvg = avg(cidArr).toFixed(1);
+    const pbAvg = avg(pbArr).toFixed(1);
+    const totOb = parseInt(country.row.ob.replace(/,/g, ''));
+    const segShare = country.row.mix[i] / 100;
+    const segOb = Math.round(totOb * segShare);
+    const nrEst = (trAvg * parseFloat(cidAvg) * segOb * 0.0001).toFixed(1);
+    const isPos = country.row.trC === 'pos';
+    const j = i;
+    result[seg] = {
+      tr: trAvg + ' bps', trΔ: isPos ? '▲ ' + (1 + (j*0.3) % 2).toFixed(1) + '%' : '▼ ' + (0.5 + (j*0.3) % 2).toFixed(1) + '%', trC: isPos ? 'pos' : 'neg',
+      adh: adhAvg + '%', adhΔ: isPos ? '▲ ' + (1 + j % 3) + '%' : '▼ ' + (1 + j % 2) + '%', adhC: isPos ? 'pos' : (j < 2 ? 'warn' : 'neg'),
+      cid: '€' + cidAvg + 'k', cidΔ: isPos ? '▲ ' + (2 + j) + '%' : '▼ ' + (2 + j) + '%', cidC: isPos ? 'pos' : 'warn',
+      pb: pbAvg + ' m', pbΔ: isPos ? '▼ ' + (1.5 + j * 0.4).toFixed(1) + '%' : '▲ ' + (1 + j * 0.3).toFixed(1) + '%', pbC: isPos ? 'pos' : 'neg',
+      ob: segOb.toString(), obΔ: isPos ? '▲ ' + (5 + j) + '%' : '▼ ' + (5 + j) + '%', obC: isPos ? 'pos' : 'warn',
+      nr: '€' + nrEst + 'k', nrΔ: isPos ? '▲ ' + (3 + j) + '%' : '▼ ' + (3 + j) + '%', nrC: isPos ? 'pos' : 'warn',
+      adhM0: Math.round(adhAvg * 0.45) + '%',
+      cidM0: '€' + (parseFloat(cidAvg) * 0.3).toFixed(1) + 'k'
+    };
+  });
+  return result;
+}
+
+function postProcess() {
+  COUNTRIES.forEach(c => {
+    // M0 sub-values
+    const adhNum = parseFloat(c.row.adh);
+    c.row.adhM0 = Math.round(adhNum * 0.45) + '%';
+    const cidNum = parseFloat(c.row.cid.replace(/[€k]/g, ''));
+    c.row.cidM0 = '€' + (cidNum * 0.3).toFixed(1) + 'k';
+    // Net revenue at country level
+    const trNum = parseFloat(c.row.tr);
+    const obNum = parseInt(c.row.ob.replace(/,/g, ''));
+    const nrK = (trNum * cidNum * obNum * 0.0001).toFixed(1);
+    c.row.nr = '€' + nrK + 'k';
+    c.row.nrC = c.row.trC;
+    const trΔPct = parseFloat((c.row.trΔ.match(/[\d.]+/) || ['0'])[0]);
+    c.row.nrΔ = c.row.trC === 'pos' ? '▲ ' + (trΔPct + 2).toFixed(1) + '%' : c.row.trC === 'neg' ? '▼ ' + (trΔPct + 2).toFixed(1) + '%' : '→ 0%';
+    // Add nr spark
+    c.sparks.nr = {
+      val: c.row.nr, wow: c.row.nrΔ + ' WoW', wowC: c.row.nrC,
+      poly: pickPoly('nr', c.row.nrC), stroke: pickStroke(c.row.nrC),
+      end1: 'Nov 25 · €' + (parseFloat(nrK) * 0.55).toFixed(1) + 'k',
+      end2: 'May 26 · ' + c.row.nr
+    };
+    // M0 overlay on adherence and TPV/CID
+    c.sparks.adh.m0Poly = shiftPoly(c.sparks.adh.poly, 18);
+    c.sparks.adh.m0Val = c.row.adhM0;
+    c.sparks.cid.m0Poly = shiftPoly(c.sparks.cid.poly, 14);
+    c.sparks.cid.m0Val = c.row.cidM0;
+    // Channel level
+    c.channels.forEach(ch => {
+      const chAdh = parseFloat(ch.adh);
+      ch.adhM0 = Math.round(chAdh * 0.45) + '%';
+      const chCid = parseFloat(ch.cid.replace(/[€k]/g, ''));
+      ch.cidM0 = '€' + (chCid * 0.3).toFixed(1) + 'k';
+      const chTr = parseFloat(ch.tr);
+      const chOb = parseInt(ch.ob.replace(/,/g, ''));
+      ch.nr = '€' + (chTr * chCid * chOb * 0.0001).toFixed(1) + 'k';
+      ch.nrC = ch.trC;
+      const chTrΔ = parseFloat((ch.trΔ.match(/[\d.]+/) || ['0'])[0]);
+      ch.nrΔ = ch.trC === 'pos' ? '▲ ' + (chTrΔ + 1.5).toFixed(1) + '%' : ch.trC === 'neg' ? '▼ ' + (chTrΔ + 1.5).toFixed(1) + '%' : '→ 0%';
+    });
+    // Build bySegment
+    c.bySegment = makeBySegment(c);
+  });
+}
+
+function adhColor(v){
+  if (v == null) return '';
+  if (v < 25) return 'background:#FCEBEB;color:#501313;';
+  if (v < 40) return 'background:#FAEEDA;color:#412402;';
+  if (v < 55) return 'background:#F4F1DC;color:#5F4F02;';
+  if (v < 70) return 'background:#EAF3DE;color:#173404;';
+  return 'background:#C0DD97;color:#173404;';
+}
+
+function renderCohort(rows, id, visible){
+  return `<div class="cohort-table-wrap${visible?'':' hidden'}" data-cohort-table="${id}">
+    <table class="cohort-table">
+      <thead><tr>
+        <th style="text-align:left;">Cohort</th>
+        <th>M0</th><th>M1</th><th>M2</th><th>M3</th><th>M4</th><th>M5</th><th>M6</th>
+        <th>Peak</th>
+      </tr></thead>
+      <tbody>
+        ${rows.map(row => {
+          const [label, ...months] = row;
+          const valid = months.filter(m => m != null);
+          const peak = valid.length ? Math.max(...valid) : null;
+          const peakIdx = peak == null ? -1 : months.findIndex(m => m === peak);
+          return `<tr>
+            <td>${label}</td>
+            ${months.map(m => m == null
+              ? '<td class="empty">—</td>'
+              : `<td style="${adhColor(m)}">${m}%</td>`).join('')}
+            <td class="peak">${peak == null ? '—' : `${peak}% (M${peakIdx})`}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+  </div>`;
+}
+
+function cohortCard(country){
+  const data = COHORTS[country.id];
+  if (!data) return '';
+  const labels = {all:'All channels', field:'Field', inside:'Inside', isc:'ISC'};
+  const channels = Object.keys(data);
+  return `<div class="cohort-card">
+    <div class="head">
+      <span class="lbl">TPV adherence by cohort × month · ${country.name}</span>
+      <div class="cohort-tabs" data-country-cohorts="${country.id}">
+        ${channels.map((ch,i) => `<button class="${i===0?'active':''}" data-cohort-channel="${ch}">${labels[ch]}</button>`).join('')}
+      </div>
+    </div>
+    ${channels.map((ch,i) => renderCohort(data[ch], `${country.id}-${ch}`, i===0)).join('')}
+    <div class="cohort-legend">
+      <span><span class="sw" style="background:#FCEBEB;"></span>&lt; 25%</span>
+      <span><span class="sw" style="background:#FAEEDA;"></span>25–40%</span>
+      <span><span class="sw" style="background:#F4F1DC;"></span>40–55%</span>
+      <span><span class="sw" style="background:#EAF3DE;"></span>55–70%</span>
+      <span><span class="sw" style="background:#C0DD97;"></span>&gt; 70%</span>
+    </div>
+  </div>`;
+}
+
+function segmentsRow(ch){
+  const s = ch.segments;
+  const segs = [
+    ['Nano','seg-nano',s.nano],
+    ['Micro','seg-micro',s.micro],
+    ['Small','seg-small',s.small],
+    ['Medium','seg-medium',s.medium],
+    ['Large','seg-large',s.large]
+  ];
+  return `<tr class="segments-row hidden" data-segments-for="${ch.id}">
+    <td colspan="7">
+      <div class="segments-inner">
+        <div class="title">${ch.name} · 6-month weekly evolution</div>
+        ${sparkGrid6(rowToSparks(ch))}
+        <div class="title" style="margin-top: 18px;">${ch.name} · metrics by segment · this week</div>
+        <table class="segments">
+          <thead><tr><th style="text-align:left;">Segment</th><th>Take rate</th><th>TPV adherence</th><th>TPV / CID</th><th>Payback</th></tr></thead>
+          <tbody>
+            ${segs.map(([n,c,v]) => `<tr><td><span class="seg-dot ${c}"></span>${n}</td><td>${v[0]}</td><td>${v[1]}</td><td>${v[2]}</td><td>${v[3]}</td></tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </td>
+  </tr>`;
+}
+
+function channelRows(c){
+  return c.channels.map(ch => `
+    <tr class="channel-row" data-channel="${ch.id}">
+      <td>${ch.name} <span class="chev">▾</span></td>
+      <td>${ch.tr} <span class="delta ${ch.trC}">${ch.trΔ}</span></td>
+      <td>${ch.adh} <span class="delta ${ch.adhC}">${ch.adhΔ}</span><div class="m0-sub">M0 · ${ch.adhM0}</div></td>
+      <td>${ch.cid} <span class="delta ${ch.cidC}">${ch.cidΔ}</span><div class="m0-sub">M0 · ${ch.cidM0}</div></td>
+      <td>${ch.pb} <span class="delta ${ch.pbC}">${ch.pbΔ}</span></td>
+      <td>${ch.ob} <span class="delta ${ch.obC}">${ch.obΔ}</span></td>
+      <td class="left">${segBar(ch.mix)}</td>
+    </tr>
+    ${segmentsRow(ch)}
+  `).join('');
+}
+
+function bySegmentRows(country){
+  const segs = ['nano','micro','small','medium','large'];
+  const cls = {nano:'seg-nano',micro:'seg-micro',small:'seg-small',medium:'seg-medium',large:'seg-large'};
+  return segs.filter(s => country.bySegment[s]).map(s => {
+    const sd = country.bySegment[s];
+    return `<tr class="segment-row" data-segment-row="${country.id}-${s}">
+      <td><span class="seg-dot ${cls[s]}"></span>${segName(s)} <span class="chev">▾</span></td>
+      <td>${sd.tr} <span class="delta ${sd.trC}">${sd.trΔ}</span></td>
+      <td>${sd.adh} <span class="delta ${sd.adhC}">${sd.adhΔ}</span><div class="m0-sub">M0 · ${sd.adhM0}</div></td>
+      <td>${sd.cid} <span class="delta ${sd.cidC}">${sd.cidΔ}</span><div class="m0-sub">M0 · ${sd.cidM0}</div></td>
+      <td>${sd.pb} <span class="delta ${sd.pbC}">${sd.pbΔ}</span></td>
+      <td>${sd.ob} <span class="delta ${sd.obC}">${sd.obΔ}</span></td>
+      <td>${sd.nr} <span class="delta ${sd.nrC}">${sd.nrΔ}</span></td>
+    </tr>
+    <tr class="segment-drill-row hidden" data-segment-drill-for="${country.id}-${s}">
+      <td colspan="7">
+        <div class="segments-inner">
+          <div class="title">${segName(s)} segment · ${country.name} · 6-month weekly evolution</div>
+          ${sparkGrid6(rowToSparks(sd))}
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function drillRow(c){
+  return `<tr class="drill-row hidden" data-drill-for="${c.id}">
+    <td colspan="7">
+      <div class="drill">
+        <div class="drill-title">${c.name} · 6-month weekly evolution</div>
+        ${sparkGrid6(c.sparks)}
+        ${segmixCard(c)}
+        ${cohortCard(c)}
+        <div class="drill-title">${c.name} · by channel · this week · click any channel for the 6-month evolution and segment breakdown</div>
+        <table class="channels">
+          <thead>
+            <tr>
+              <th class="left">Channel</th>
+              <th>Take rate</th><th>TPV adher. · M0</th><th>TPV / CID · M0</th><th>Payback</th><th>Gross Adds</th><th class="left">Segment mix</th>
+            </tr>
+          </thead>
+          <tbody>${channelRows(c)}</tbody>
+        </table>
+        <div class="drill-title" style="margin-top: 22px;">${c.name} · by segment · this week · click any segment for the 6-month evolution</div>
+        <table class="channels">
+          <thead>
+            <tr>
+              <th class="left">Segment</th>
+              <th>Take rate</th><th>TPV adher. · M0</th><th>TPV / CID · M0</th><th>Payback</th><th>Gross Adds</th><th>Net revenue</th>
+            </tr>
+          </thead>
+          <tbody>${bySegmentRows(c)}</tbody>
+        </table>
+      </div>
+    </td>
+  </tr>`;
+}
+
+function countryRow(c){
+  const r = c.row;
+  return `<tr class="country-row" data-country="${c.id}">
+    <td>${c.name} <span class="chev">▾</span></td>
+    <td>${r.tr} <span class="delta ${r.trC}">${r.trΔ}</span></td>
+    <td>${r.adh} <span class="delta ${r.adhC}">${r.adhΔ}</span><div class="m0-sub">M0 · ${r.adhM0}</div></td>
+    <td>${r.cid} <span class="delta ${r.cidC}">${r.cidΔ}</span><div class="m0-sub">M0 · ${r.cidM0}</div></td>
+    <td>${r.pb} <span class="delta ${r.pbC}">${r.pbΔ}</span></td>
+    <td>${r.ob} <span class="delta ${r.obC}">${r.obΔ}</span></td>
+    <td class="left">${segBar(r.mix)}</td>
+  </tr>
+  ${drillRow(c)}`;
+}
+
+postProcess();
+document.getElementById('country-tbody').innerHTML = COUNTRIES.map(countryRow).join('');
+
+// ---------- INTERACTIONS ----------
+
+document.addEventListener('click', e => {
+  const tab = e.target.closest('.cohort-tabs button');
+  if (tab) {
+    const tabs = tab.parentElement;
+    const countryId = tabs.dataset.countryCohorts;
+    const channel = tab.dataset.cohortChannel;
+    tabs.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+    tab.classList.add('active');
+    document.querySelectorAll(`[data-cohort-table^="${countryId}-"]`).forEach(t => t.classList.add('hidden'));
+    document.querySelector(`[data-cohort-table="${countryId}-${channel}"]`).classList.remove('hidden');
+    e.stopPropagation();
+    return;
+  }
+  const countryRow = e.target.closest('tr.country-row');
+  if (countryRow) {
+    const id = countryRow.dataset.country;
+    const drill = document.querySelector(`tr.drill-row[data-drill-for="${id}"]`);
+    drill.classList.toggle('hidden');
+    countryRow.classList.toggle('open');
+    return;
+  }
+  const chRow = e.target.closest('tr.channel-row');
+  if (chRow) {
+    const id = chRow.dataset.channel;
+    const segs = chRow.parentElement.querySelector(`tr.segments-row[data-segments-for="${id}"]`);
+    if (segs) {
+      segs.classList.toggle('hidden');
+      chRow.classList.toggle('open');
+    }
+    return;
+  }
+  const segRow = e.target.closest('tr.segment-row');
+  if (segRow) {
+    const id = segRow.dataset.segmentRow;
+    const drill = segRow.parentElement.querySelector(`tr.segment-drill-row[data-segment-drill-for="${id}"]`);
+    if (drill) {
+      drill.classList.toggle('hidden');
+      segRow.classList.toggle('open');
+    }
+  }
+});
+</script>
+</body>
+</html>
